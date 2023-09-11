@@ -619,7 +619,31 @@ def mp_worker(file, startw, stopw, startt, intt, adi_mode, wcs_timestep, md, exc
     if startt + intt > pt.duration:
         getLogger(__name__).warning(f'Specified start ({startt}s) and duration ({intt}s) exceed the full length of the '
                                     f'photontable ({pt.duration}s).')
-    photons = pt.query(startw=startw, stopw=stopw, start=startt, intt=intt)
+    ############################################################################## code Andrew added
+
+    #photons = pt.query(startw=startw, stopw=stopw, start=startt, intt=intt)     originally it was just this line
+    #intt is duration in seconds, output of pt.query is a 1d numpy array with each entry representing a photon
+
+    dir = os.path.dirname(file) + '/query_ranges/'
+    bname = os.path.basename(file)
+    h5name = os.path.splitext(bname)[0]
+
+    photons = []
+
+    try:
+        with open(f'{dir}{h5name}_query.txt', 'r') as f:  # reading created _query.txt files
+            arr = np.loadtxt(f)
+            for val in arr:
+                duration = val[1] - val[0]
+                if(val[0] > startt): #only allow photons after the start offset
+                    photons.append(pt.query(startw=startw, stopw=stopw, start=val[0], intt=duration))
+
+        photons = np.array(photons[0])  #necessary to get the right shape
+        getLogger(__name__).info(f'success loading query ranges for {h5name}, {arr.shape}')
+    except:
+        getLogger(__name__).warning(f'Failed loading photons from query_ranges for {h5name}, skipping')
+
+    ##############################################################################
     num_unfiltered = len(photons)
     if not len(photons):
         getLogger(__name__).warning(f'No photons found using wavelength range {startw}-{stopw} nm and time range '
